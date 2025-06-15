@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Medival Battle"
+config/name="Steel and Fury"
 run/main_scene="uid://ei0xa3b0ylru"
 config/features=PackedStringArray("4.4")
 
