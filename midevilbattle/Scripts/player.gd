@@ -63,7 +63,7 @@ func free_slot(enemy: BasicEnemy) -> void:
 		target_slots[0].free_up()
 
 func can_get_hurt() -> bool:
-	return [State.IDLE, State.WALK, State.TAKEOFF, State.LAND, State.PREP_ATTACK].has(state)
+	return [State.IDLE, State.WALK, State.TAKEOFF, State.LAND].has(state)
 
 func can_get_hit_thrown(hit_type) -> bool:
 	return hit_type == DamageReceiver.HitType.ENEMYTHROWN
