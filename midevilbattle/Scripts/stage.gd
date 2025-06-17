@@ -5,3 +5,4 @@ extends Node2D
 func _ready() -> void:
 	for container :Node2D in containers.get_children():
 		EntityManager.orphan_actor.emit(container)
+		print("hit")
