@@ -34,7 +34,7 @@ rotation = 1.5708
 scale = Vector2(0.782557, 1.07181)
 shape = SubResource("RectangleShape2D_1aqku")
 
-[node name="DamageReciver" parent="." instance=ExtResource("2_x83p3")]
+[node name="DamageReciver" parent="." groups=["props"] instance=ExtResource("2_x83p3")]
 collision_layer = 64
 
 [node name="CollisionShape2D" parent="DamageReciver" index="0"]

@@ -4,6 +4,7 @@ extends CharacterBody2D
 const GRAVITY := 600.0
 @export var can_respawn : bool
 @export var can_respawn_knives : bool
+@export var can_drop_knives: bool
 @export var damage : int
 @export var damage_power : int
 @export var duration_grounded: float
@@ -15,6 +16,7 @@ const GRAVITY := 600.0
 @export var knockdown_intensity : float
 @export var max_health : int
 @export var speed : float
+@export var type: Type
 
 @onready var hit_flash_anim: AnimationPlayer = $HitFlash
 @onready var projectile_aim : RayCast2D = $ProjectileAim
@@ -29,9 +31,10 @@ const GRAVITY := 600.0
 @onready var weapon_position_bottom : Node2D = $Shadow/WeaponPositionBottom
 @onready var weapon_position_top : Node2D = $KnifeSprite/WeaponPositionTop
 @onready var shadow : Sprite2D = $Shadow
+@onready var in_wall_detection : Area2D = $InWallDetector
 
-enum State {IDLE, WALK, ATTACK, TAKEOFF, JUMP, LAND, JUMPKICK, HURT, FALL, GROUNDED, DEATH, FLY, PREP_ATTACK, THROW,JUMPTHROW,PICKUP}
-
+enum State {IDLE, WALK, ATTACK, TAKEOFF, JUMP, LAND, JUMPKICK, HURT, FALL, GROUNDED, DEATH, FLY, PREP_ATTACK, THROW,JUMPTHROW,PICKUP, RECOVER}
+enum Type{PLAYER, ASHMAW, BLANCHMAW, VERDMAW, SKIVER, GOREHIDE, KINGSKIVER}
 var anim_attacks := []
 var anim_map := {
 	State.IDLE: "idle",
@@ -49,7 +52,8 @@ var anim_map := {
 	State.PREP_ATTACK: "idle",
 	State.THROW: "throw",
 	State.PICKUP:'pickup',
-	State.JUMPTHROW: "jump_throw"
+	State.JUMPTHROW: "jump_throw",
+	State.RECOVER: "recover"
 }
 var attack_combo_index := 0
 var current_health := 0
@@ -68,7 +72,6 @@ func _ready() -> void:
 	collateral_damage_emitter.area_entered.connect(on_emit_collateral_damage.bind())
 	collateral_damage_emitter.body_entered.connect(on_wall_hit.bind())
 	current_health = max_health
-
 func _process(delta: float) -> void:
 	handle_input()
 	handle_movement()
@@ -101,12 +104,11 @@ func handle_prep_attack() -> void:
 	pass
 
 func handle_grounded() -> void:
-	if state == State.GROUNDED and (Time.get_ticks_msec() - time_since_grounded > duration_grounded):
+	if state == State.GROUNDED:
 		if current_health <= 0:
 			state = State.DEATH
-		else:
+		if (Time.get_ticks_msec() - time_since_grounded > duration_grounded):
 			state = State.LAND
-
 func handle_knife_respawn() -> void:
 	if can_respawn_knives and not has_knife and (Time.get_ticks_msec() - time_since_knife_dismiss > duration_between_knife_respawn):
 		has_knife = true
@@ -148,6 +150,7 @@ func flip_sprites() -> void:
 		damage_emitter.scale.x = 1
 		damage_receiver.scale.x = 1
 		collateral_damage_emitter.scale.x = 1
+		in_wall_detection.scale.x = 1
 		projectile_aim.scale.x = 1
 		knife_sprite.scale.x = 1
 		shadow.scale.x = 1
@@ -157,6 +160,7 @@ func flip_sprites() -> void:
 		damage_emitter.scale.x = -1
 		damage_receiver.scale.x = -1
 		collateral_damage_emitter.scale.x = -1
+		in_wall_detection.scale.x = -1
 		projectile_aim.scale.x = -1
 		knife_sprite.scale.x = -1
 		shadow.scale.x = -1
@@ -175,7 +179,7 @@ func can_jumpkick() -> bool:
 func can_get_hurt() -> bool:
 	return false
 	
-func can_get_hit_thrown(hit_type) -> bool:
+func can_get_hit_thrown(_hit_type) -> bool:
 	return false
 	
 func can_pickup_collectible() -> bool:
@@ -185,6 +189,8 @@ func can_pickup_collectible() -> bool:
 	var collectible : Collectible = collectible_areas[0]
 	if collectible.type == collectible.Type.KNIFE and not has_knife:
 		return true
+	if collectible.type == collectible.Type.FOOD and current_health < max_health:
+		return true
 	return false
 	
 func pickup_collectible():
@@ -193,6 +199,10 @@ func pickup_collectible():
 		var collectible : Collectible = collectible_areas[0]
 		if collectible.type == collectible.Type.KNIFE and not has_knife:
 			has_knife = true
+			can_drop_knives = true
+		if collectible.type == collectible.Type.FOOD and can_pickup_collectible():
+			Music.sfx_play("eat")
+			set_health(max_health)
 		collectible.queue_free()
 
 func is_collision_disabled() -> bool:
@@ -219,25 +229,28 @@ func on_pickup_complete():
 	pickup_collectible()
 
 func on_receive_damage(emitter, amount: int, direction: Vector2, hit_type: DamageReceiver.HitType) -> void:
-	if can_get_hurt():
-		if can_get_hit_thrown(hit_type):
-			hit_flash_anim.play("hit")
-			if has_knife:
-				has_knife = false
-				time_since_knife_dismiss = Time.get_ticks_msec()
-			current_health = clamp(current_health - amount, 0, max_health)
+	if can_get_hit_thrown(hit_type):
+		if emitter is Collectible:
+			emitter.delete_collectible()
+		if current_health <= 0:
 			state = State.FALL
 			height_speed = knockdown_intensity
 			velocity = direction * knockback_intensity
-			if emitter is Collectible:
-				emitter.delete_collectible()
-		else:
+		state = State.FALL
+		height_speed = knockdown_intensity
+		velocity = direction * knockback_intensity
+	else:
+		if can_get_hurt():
+			hit_flash_anim.play("hit")
+			attack_combo_index = 0
+			if has_knife:
+				has_knife = false
+				if can_drop_knives:
+					can_drop_knives = false
+					EntityManager.spawn_collectible.emit(Collectible.Type.KNIFE, Collectible.State.FALL, global_position, Vector2.ZERO, 0.0)				
+				time_since_knife_dismiss = Time.get_ticks_msec()
+			set_health(current_health-amount)
 			if hit_type not in [DamageReceiver.HitType.PLAYERTHROWN, DamageReceiver.HitType.ENEMYTHROWN]:
-				hit_flash_anim.play("hit")
-				if has_knife:
-					has_knife = false
-					time_since_knife_dismiss = Time.get_ticks_msec()
-				current_health = clamp(current_health - amount, 0, max_health)
 				if current_health <= 0 or hit_type == DamageReceiver.HitType.KNOCKDOWN:
 					state = State.FALL
 					height_speed = knockdown_intensity
@@ -260,7 +273,8 @@ func on_emit_damage(receiver: DamageReceiver) -> void:
 		hit_type = DamageReceiver.HitType.POWER
 		current_damage = damage_power
 	receiver.damage_received.emit(self, current_damage, direction, hit_type)
-	is_last_hit_successful = true
+	if not receiver.is_in_group("props"):
+		is_last_hit_successful = true
 
 func on_emit_collateral_damage(receiver: DamageReceiver) -> void:
 	if receiver != damage_receiver:
@@ -272,3 +286,6 @@ func on_wall_hit(_wall: AnimatableBody2D) -> void:
 	height_speed = knockback_intensity
 	velocity = -velocity / 2.0
 	
+func set_health(health):
+	current_health = clamp(health, 0, max_health)
+	DamageManager.health_change.emit(type, current_health, max_health)

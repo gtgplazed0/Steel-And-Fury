@@ -10,12 +10,13 @@ const GRAVITY := 600.0
 @onready var collectible_sprite := $CollectibleSprite
 @onready var damage_emitter: Area2D = $DamageEmitter
 enum State {FALL, GROUNDED, FLY}
-enum Type{KNIFE, ENEMY_KNIFE, PLAYER_KNIFE, FOOD}
+enum Type{KNIFE, ENEMY_KNIFE, PLAYER_KNIFE, FOOD, NONE}
 var anim_map := {
 	State.FALL: "fall", 
 	State.GROUNDED: "grounded", 
 	State.FLY: "fly"
 }
+var food_sprites := ["res://Assets/Props/Food/Apple.png","res://Assets/Props/Food/Bread.png", "res://Assets/Props/Food/TurkeyLeg.png"]
 var height := 0.0
 var height_speed := 0.0
 var state = State.FALL
@@ -24,6 +25,9 @@ var velocity:= Vector2.ZERO
 var hit_type: DamageReceiver.HitType
 
 func _ready() -> void:
+	if type == Type.FOOD:
+		food_sprites.shuffle()
+		collectible_sprite.texture = load(food_sprites[0])
 	height_speed = knockdown_intensity
 	if state == State.FLY:
 		handle_animations()
@@ -71,4 +75,4 @@ func _on_body_exit(_wall: AnimatableBody2D):
 	queue_free()
 
 func delete_collectible():
-	queue_free()
+	call_deferred("queue_free")

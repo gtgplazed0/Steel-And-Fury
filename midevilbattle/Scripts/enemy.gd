@@ -82,17 +82,15 @@ func can_throw() -> bool:
 	if Time.get_ticks_msec() - time_since_last_range_attack < duration_between_range_attacks and has_knife:
 		return false
 	return super.can_attack()
-func can_get_hit_thrown(hit_type) -> bool:
-	if hit_type == DamageReceiver.HitType.PLAYERTHROWN:
-		print("hello")
-	return hit_type == DamageReceiver.HitType.PLAYERTHROWN
+func can_get_hit_thrown(_hit_type) -> bool:
+	return _hit_type == DamageReceiver.HitType.PLAYERTHROWN
 	
 func set_heading() -> void:
 	if player == null or not can_move():
 		return
 	heading = Vector2.LEFT if position.x > player.position.x else Vector2.RIGHT
 func can_get_hurt() -> bool:
-	return [State.IDLE, State.WALK, State.TAKEOFF, State.LAND, State.ATTACK].has(state)
+	return [State.IDLE, State.WALK, State.TAKEOFF, State.LAND, State.ATTACK, State.PREP_ATTACK].has(state)
 
 
 func on_throw_complete() -> void:
@@ -108,3 +106,19 @@ func on_jump_throw_complete():
 	state = State.JUMP
 	has_knife = false
 	EntityManager.spawn_collectible.emit(Collectible.Type.ENEMY_KNIFE, Collectible.State.FLY, knife_global_position, heading, knife_height)
+
+
+func on_receive_damage(emitter, amount: int, direction: Vector2, hit_type: DamageReceiver.HitType) -> void:
+	super.on_receive_damage(emitter, amount, direction, hit_type)
+	ComboManager.register_hit.emit()
+	if current_health <= 0:
+		play_sound(type)
+		player.free_slot(self)
+		EntityManager.death_enemy.emit(self)
+
+func play_sound(type):
+	if [Character.Type.ASHMAW, Character.Type.VERDMAW, Character.Type.BLANCHMAW].has(type):
+		print("playing")
+		Music.sfx_play("wolf")
+	elif type == Character.Type.SKIVER or type == Character.Type.KINGSKIVER:
+		Music.sfx_play("skeleton")

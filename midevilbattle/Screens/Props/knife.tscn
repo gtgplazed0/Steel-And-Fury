@@ -182,6 +182,7 @@ size = Vector2(5.75, 5)
 
 [node name="Knife" instance=ExtResource("1_bxdm3")]
 speed = 150.0
+damage = 8
 
 [node name="CollisionShape2D" parent="." index="0"]
 position = Vector2(0, -8)
